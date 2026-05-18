@@ -6,7 +6,7 @@ spring:
     name: ticket-service
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:5432/${DB_NAME:ticketdb}
+    url: jdbc:postgresql://${DB_HOST:localhost}:5433/${DB_NAME:ticketdb}
     username: ${DB_USER}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
@@ -25,7 +25,7 @@ spring:
     baseline-on-migrate: true
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -62,6 +62,6 @@ logging:
 
 kafka:
   topics:
-    pago-confirmado: pago-confirmado   # Escucha
+    order-confirmed: order.confirmed   # Escucha
     ticket-generated: ticket.generated  # Publica
     ticket-validated: ticket.validated  # Publica

@@ -1,7 +1,7 @@
 package com.vivaeventos.ticketservice.kafka;
 
-import com.vivaeventos.ticketservice.module.Ticket;
 import com.vivaeventos.ticketservice.event.PagoConfirmadoEvent;
+import com.vivaeventos.ticketservice.module.Ticket;
 import com.vivaeventos.ticketservice.service.TicketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,11 +14,18 @@ import org.springframework.stereotype.Component;
 public class PagoConfirmadoConsumer {
 
     private final TicketService ticketService;
+    private final TicketEventPublisher publisher;
 
-    @KafkaListener(topics = "pago-confirmado", groupId = "ticket-service-group")
+
+    @KafkaListener(
+            topics = "${kafka.topics.order-confirmed:order.confirmed}",
+            groupId = "ticket-service-group",
+            containerFactory = "kafkaListenerContainerFactory"
+    )
     public void onPagoConfirmado(PagoConfirmadoEvent evento) {
-        log.info("Pago confirmado recibido para orden {}", evento.orderId());
+        log.info("order.confirmed recibido para orden {}", evento.orderId());
         Ticket ticket = ticketService.generarTicket(evento);
-        log.info("Ticket generado: {} para orden {}", ticket.getUniqueCode(), evento.orderId());
+        publisher.publishTicketGenerated(ticket);
+        log.info("Ticket {} generado y publicado", ticket.getUniqueCode());
     }
 }
