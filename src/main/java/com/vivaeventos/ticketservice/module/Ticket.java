@@ -2,11 +2,20 @@ package com.vivaeventos.ticketservice.module;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "tickets")
+@Table(
+        name = "tickets",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_ticket_order_id",
+                        columnNames = "order_id"
+                )
+        }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -32,7 +41,9 @@ public class Ticket {
 
     private String status;
 
+    @Column(name = "validated_at")
     private LocalDateTime validatedAt;
 
+    @Column(name = "generated_at")
     private LocalDateTime generatedAt;
 }

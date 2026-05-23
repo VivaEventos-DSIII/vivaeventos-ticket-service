@@ -1,84 +1,155 @@
 # Ticket Service — VivaEventos
 
-Microservicio encargado de generar boletas digitales con QR único y validar el acceso en puerta (US-06).
+Microservicio encargado de generar boletas digitales con QR único y validar el acceso en puerta.
 
-## Requisitos previos
-
-- Java 21 o superior
-- Maven 3.9+
-- Docker Desktop instalado y corriendo
-
-## Pasos para correr el proyecto
-
-### 1. Clonar el repositorio
+# 1. Clonar el repositorio
 
 ```bash
-git clone 
+git clone <URL_DEL_REPOSITORIO>
 cd vivaeventos-ticket-service
 ```
 
-### 2. Crear el archivo .env
+---
 
-Copia el archivo de ejemplo y ajusta los valores:
+# 2. Crear el archivo .env
+
+## Windows PowerShell
+
+```powershell
+copy .env.example .env
+```
+
+## macOS / Linux
 
 ```bash
 cp .env.example .env
 ```
 
-El archivo `.env` debe tener:
+Contenido esperado del archivo `.env`:
+
+```env
+# Base de datos
 DB_USER=vivaeventos
 DB_PASSWORD=changeme
+```
 
-### 3. Levantar la infraestructura
+> El archivo `.env` NO debe subirse a GitHub.
+
+---
+
+# 3. Levantar infraestructura Docker
+
+Iniciar PostgreSQL + Kafka + Zookeeper:
 
 ```bash
 docker compose up -d zookeeper kafka db-tickets
 ```
 
-Espera 30 segundos y verifica que los tres contenedores estén **healthy**:
+Verificar que los contenedores estén funcionando:
 
 ```bash
 docker compose ps
 ```
 
-Debes ver algo así:
-NAME               STATUS
-ticket-db          running (healthy)
-ticket-kafka       running (healthy)
-ticket-zookeeper   running (healthy)
+Debe verse algo similar:
 
-### 4. Configurar las variables de entorno
-
-**macOS / Linux:**
-```bash
-export DB_USER=vivaeventos
-export DB_PASSWORD=changeme
+```text
+NAME                 STATUS
+ticket-db            running (healthy)
+ticket-kafka         running (healthy)
+ticket-zookeeper     running (healthy)
 ```
 
-**Windows PowerShell:**
+---
+
+# 4. Configurar variables de entorno
+
+## Windows PowerShell
+
 ```powershell
 $env:DB_USER="vivaeventos"
 $env:DB_PASSWORD="changeme"
 ```
 
-### 5. Correr el servicio
+## macOS / Linux
+
+```bash
+export DB_USER=vivaeventos
+export DB_PASSWORD=changeme
+```
+
+> IMPORTANTE:
+> Estas variables deben configurarse en la MISMA terminal donde se ejecutará Maven.
+
+---
+
+# 5. Ejecutar el microservicio
 
 ```bash
 mvn spring-boot:run
 ```
 
-El servicio arranca en el puerto **8084**. Cuando veas esta línea en los logs el servicio está listo:
+El servicio iniciará en:
+
+```text
+http://localhost:8084
+```
+
+Cuando aparezca este log, el sistema está listo:
+
+```text
 Started TicketServiceApplication
+```
+
+y también:
+
+```text
 partitions assigned: [order.confirmed-0]
+```
 
-Flyway crea las tablas automáticamente al arrancar — no necesitas correr ningún SQL manualmente.
+---
 
-## Probar que funciona
+# Base de datos
 
-**Consultar un ticket (debe devolver 404):**
+La base de datos PostgreSQL corre dentro de Docker.
+
+## Configuración
+
+| Parámetro | Valor |
+|---|---|
+| Host | localhost |
+| Puerto | 5433 |
+| Database | ticketdb |
+| Usuario | vivaeventos |
+| Password | changeme |
+
+---
+
+
+
+# Migraciones Flyway
+
+Las tablas se crean automáticamente al arrancar la aplicación.
+
+NO ejecutar scripts SQL manualmente.
+
+Flyway aplicará automáticamente las migraciones ubicadas en:
+
+```text
+src/main/resources/db/migration
+```
+
+---
+
+# Probar endpoints
+
+---
+
+## 1. Consultar ticket inexistente
+
+### Windows PowerShell
 
 ```powershell
-# Windows PowerShell
 try {
     Invoke-RestMethod -Method GET -Uri "http://localhost:8084/api/tickets/00000000-0000-0000-0000-000000000001"
 } catch {
@@ -86,32 +157,171 @@ try {
 }
 ```
 
+### macOS / Linux
+
 ```bash
-# macOS / Linux
 curl -i http://localhost:8084/api/tickets/00000000-0000-0000-0000-000000000001
 ```
 
-**Validar un QR inexistente (debe devolver 404):**
+Debe devolver:
 
-```bash
-curl -i -X POST http://localhost:8084/api/tickets/CODIGO-INEXISTENTE/validate
+```text
+404 Not Found
 ```
 
-## Apagar todo al terminar
+---
+
+## 2. Validar QR inexistente
+
+### Windows
+
+```powershell
+curl.exe -i -X POST "http://localhost:8084/api/tickets/CODIGO-INEXISTENTE/validate"
+```
+
+### macOS / Linux
+
+```bash
+curl -i -X POST "http://localhost:8084/api/tickets/CODIGO-INEXISTENTE/validate"
+```
+
+Respuesta esperada:
+
+```json
+{
+  "status": 404,
+  "error": "Ticket no encontrado con código: CODIGO-INEXISTENTE"
+}
+```
+
+---
+
+# Reiniciar completamente la base de datos
+
+Detener contenedores:
 
 ```bash
 docker compose down
 ```
 
-Los datos de la base de datos quedan guardados en el volumen Docker. Si quieres resetear completamente:
+Eliminar también los datos persistidos:
 
 ```bash
 docker compose down -v
 ```
 
-## Notas importantes
+Luego volver a iniciar:
 
-- La base de datos corre en el puerto **5433** (no 5432) para no chocar con otros servicios.
-- El servicio escucha el tópico `order.confirmed` de Kafka para generar tickets automáticamente cuando un pago es confirmado.
-- Flyway aplica las migraciones automáticamente — nunca modifiques las tablas manualmente.
-- Las variables `DB_USER` y `DB_PASSWORD` deben estar configuradas en la misma terminal donde corres `mvn spring-boot:run`.
+```bash
+docker compose up -d zookeeper kafka db-tickets
+```
+
+---
+
+# Configuración de datasource
+
+El proyecto utiliza variables de entorno para evitar hardcodear credenciales sensibles.
+
+```yml
+datasource:
+  url: jdbc:postgresql://${DB_HOST:localhost}:5433/${DB_NAME:ticketdb}
+  username: ${DB_USER:vivaeventos}
+  password: ${DB_PASSWORD:changeme}
+```
+
+Esto permite:
+
+- usar valores por defecto en desarrollo
+- sobrescribir variables en producción
+- evitar exponer secretos reales en GitHub
+
+---
+
+# Seguridad
+
+- `.env` NO debe subirse al repositorio.
+- `.env.example` SÍ puede subirse porque contiene valores de desarrollo.
+- Las credenciales reales de producción deben manejarse mediante variables de entorno seguras.
+
+---
+
+# Estructura Docker
+
+| Servicio | Contenedor |
+|---|---|
+| PostgreSQL | ticket-db |
+| Kafka | ticket-kafka |
+| Zookeeper | ticket-zookeeper |
+
+---
+
+# Notas importantes
+
+- PostgreSQL usa el puerto `5433` para evitar conflictos con otros servicios locales.
+- Kafka escucha eventos en el tópico:
+
+```text
+order.confirmed
+```
+
+- El microservicio genera tickets automáticamente cuando recibe un evento de pago confirmado.
+- Flyway controla completamente el schema de la base de datos.
+- No modificar tablas manualmente.
+
+---
+
+# Troubleshooting
+
+## Error: password authentication failed
+
+Verificar variables de entorno:
+
+### Windows PowerShell
+
+```powershell
+echo $env:DB_USER
+echo $env:DB_PASSWORD
+```
+
+### macOS / Linux
+
+```bash
+echo $DB_USER
+echo $DB_PASSWORD
+```
+
+---
+
+## Error: Connection refused localhost:5433
+
+Verificar que PostgreSQL esté arriba:
+
+```bash
+docker ps
+```
+
+Debe existir:
+
+```text
+ticket-db
+```
+
+---
+
+## Error: Kafka unavailable
+
+Verificar:
+
+```bash
+docker compose ps
+```
+
+Kafka y Zookeeper deben estar healthy.
+
+---
+
+# Apagar todo al terminar
+
+```bash
+docker compose down
+```

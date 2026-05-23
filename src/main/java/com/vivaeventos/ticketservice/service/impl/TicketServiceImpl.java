@@ -14,6 +14,7 @@ import com.vivaeventos.ticketservice.service.TicketService;
 import com.vivaeventos.ticketservice.util.UniqueCodeGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,53 +33,114 @@ public class TicketServiceImpl implements TicketService {
     @Override
     @Transactional
     public Ticket generarTicket(PagoConfirmadoEvent evento) {
+
         return ticketRepository.findByOrderId(evento.orderId())
                 .orElseGet(() -> {
-                    String uniqueCode = UniqueCodeGenerator.generate();
-                    Ticket ticket = Ticket.builder()
-                            .orderId(evento.orderId())
-                            .eventId(evento.eventId())
-                            .customerId(evento.customerId())
-                            .ticketType(evento.ticketType() != null ? evento.ticketType() : "GENERAL")
-                            .uniqueCode(uniqueCode)
-                            .qrImageUrl(qrService.generateBase64(uniqueCode))
-                            .status("ACTIVE")
-                            .generatedAt(LocalDateTime.now())
-                            .build();
-                    Ticket saved = ticketRepository.save(ticket);
-                    log.info("Ticket generado: {} para orden {}", uniqueCode, evento.orderId());
-                    return saved;
+
+                    try {
+
+                        String uniqueCode = UniqueCodeGenerator.generate();
+
+                        Ticket ticket = Ticket.builder()
+                                .orderId(evento.orderId())
+                                .eventId(evento.eventId())
+                                .customerId(evento.customerId())
+                                .ticketType(
+                                        evento.ticketType() != null
+                                                ? evento.ticketType()
+                                                : "GENERAL"
+                                )
+                                .uniqueCode(uniqueCode)
+                                .qrImageUrl(qrService.generateBase64(uniqueCode))
+                                .status("ACTIVE")
+                                .generatedAt(LocalDateTime.now())
+                                .build();
+
+                        Ticket saved = ticketRepository.save(ticket);
+
+                        log.info(
+                                "Ticket generado: {} para orden {}",
+                                uniqueCode,
+                                evento.orderId()
+                        );
+
+                        return saved;
+
+                    } catch (DataIntegrityViolationException e) {
+
+                        log.warn(
+                                "Ticket ya existente para orden {}",
+                                evento.orderId()
+                        );
+
+                        return ticketRepository.findByOrderId(evento.orderId())
+                                .orElseThrow();
+                    }
                 });
     }
 
     @Override
     public TicketResponse getTicketById(UUID id) {
+
         Ticket ticket = ticketRepository.findById(id)
                 .orElseThrow(() -> new TicketNotFoundException(id));
+
         return TicketResponse.from(ticket);
     }
 
     @Override
     @Transactional
     public TicketValidationResponse validarTicketDto(String codigo) {
+
         Ticket ticket = ticketRepository.findByUniqueCode(codigo)
-                .orElseThrow(() -> new TicketNotFoundException(codigo));
+                .orElseThrow(() -> {
+
+                    validationRepository.save(
+                            TicketValidation.builder()
+                                    .result("NOT_FOUND")
+                                    .validatedAt(LocalDateTime.now())
+                                    .offlineMode(false)
+                                    .validatedBy("SYSTEM")
+                                    .build()
+                    );
+
+                    return new TicketNotFoundException(codigo);
+                });
 
         if ("USED".equals(ticket.getStatus())) {
+
+            validationRepository.save(
+                    TicketValidation.builder()
+                            .ticket(ticket)
+                            .result("ALREADY_USED")
+                            .validatedAt(LocalDateTime.now())
+                            .offlineMode(false)
+                            .validatedBy("SYSTEM")
+                            .build()
+            );
+
             throw new TicketAlreadyUsedException(codigo);
         }
 
         ticket.setStatus("USED");
         ticket.setValidatedAt(LocalDateTime.now());
+
         ticketRepository.save(ticket);
 
-        validationRepository.save(TicketValidation.builder()
-                .ticket(ticket)
-                .result("VALID")
-                .validatedAt(LocalDateTime.now())
-                .offlineMode(false)
-                .build());
+        validationRepository.save(
+                TicketValidation.builder()
+                        .ticket(ticket)
+                        .result("VALID")
+                        .validatedAt(LocalDateTime.now())
+                        .offlineMode(false)
+                        .validatedBy("SYSTEM")
+                        .build()
+        );
 
-        return new TicketValidationResponse(codigo, "VALID", ticket.getId());
+        return new TicketValidationResponse(
+                codigo,
+                "VALID",
+                ticket.getId()
+        );
     }
 }

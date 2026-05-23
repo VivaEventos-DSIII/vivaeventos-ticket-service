@@ -16,15 +16,17 @@ public class TicketController {
 
     private final TicketService ticketService;
 
-    // US-06 criterio 2: consultar boleta con su identificador único
     @GetMapping("/{id}")
     public ResponseEntity<TicketResponse> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(ticketService.getTicketById(id));
     }
 
-    // RQ-05: validar QR en puerta — no usar dos veces
     @PostMapping("/{codigo}/validate")
-    public ResponseEntity<TicketValidationResponse> validate(@PathVariable String codigo) {
-        return ResponseEntity.ok(ticketService.validarTicketDto(codigo));
+    public ResponseEntity<TicketValidationResponse> validate(
+            @PathVariable String codigo
+    ) {
+        return ResponseEntity.ok(
+                ticketService.validarTicketDto(codigo)
+        );
     }
 }

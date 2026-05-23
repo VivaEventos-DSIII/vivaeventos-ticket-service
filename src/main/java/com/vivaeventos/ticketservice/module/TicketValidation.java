@@ -2,6 +2,7 @@ package com.vivaeventos.ticketservice.module;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -18,14 +19,17 @@ public class TicketValidation {
     private UUID id;
 
     @ManyToOne
-    @JoinColumn(name = "ticket_id")
+    @JoinColumn(name = "ticket_id", nullable = false)
     private Ticket ticket;
 
+    @Column(name = "validated_by")
     private String validatedBy;
 
     private String result;
 
+    @Column(name = "validated_at")
     private LocalDateTime validatedAt;
 
+    @Column(name = "offline_mode")
     private Boolean offlineMode;
 }
