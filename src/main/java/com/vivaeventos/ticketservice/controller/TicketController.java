@@ -1,15 +1,17 @@
 package com.vivaeventos.ticketservice.controller;
 
+import com.vivaeventos.ticketservice.dto.TicketResponse;
+import com.vivaeventos.ticketservice.dto.TicketValidationResponse;
 import com.vivaeventos.ticketservice.service.TicketService;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
+import java.util.UUID;
 
+@Validated
 @RestController
 @RequestMapping("/api/tickets")
 @RequiredArgsConstructor
@@ -17,14 +19,16 @@ public class TicketController {
 
     private final TicketService ticketService;
 
-    @GetMapping("/validar/{codigo}")
-    public ResponseEntity<Map<String, Object>> validar(@PathVariable String codigo) {
-        Map<String, Object> resultado = ticketService.validarTicket(codigo);
-        int status = switch ((String) resultado.get("resultado")) {
-            case "VALID"       -> 200;
-            case "NOT_FOUND"   -> 404;
-            default            -> 409;  // ALREADY_USED | CANCELLED
-        };
-        return ResponseEntity.status(status).body(resultado);
+    // US-06 criterio 2: consultar boleta con su identificador único
+    @GetMapping("/{id}")
+    public ResponseEntity<TicketResponse> getById(@PathVariable UUID id) {
+        return ResponseEntity.ok(ticketService.getTicketById(id));
+    }
+
+    // RQ-05: validar QR en puerta — no usar dos veces
+    @PostMapping("/{codigo}/validate")
+    public ResponseEntity<TicketValidationResponse> validate(
+            @PathVariable @NotBlank String codigo) {
+        return ResponseEntity.ok(ticketService.validarTicketDto(codigo));
     }
 }
