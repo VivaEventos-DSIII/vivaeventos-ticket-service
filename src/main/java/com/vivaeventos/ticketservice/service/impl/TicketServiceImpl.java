@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -32,23 +33,25 @@ public class TicketServiceImpl implements TicketService {
     @Override
     @Transactional
     public Ticket generarTicket(PagoConfirmadoEvent evento) {
-        return ticketRepository.findByOrderId(evento.orderId())
-                .orElseGet(() -> {
-                    String uniqueCode = UniqueCodeGenerator.generate();
-                    Ticket ticket = Ticket.builder()
-                            .orderId(evento.orderId())
-                            .eventId(evento.eventId())
-                            .customerId(evento.customerId())
-                            .ticketType(evento.ticketType() != null ? evento.ticketType() : "GENERAL")
-                            .uniqueCode(uniqueCode)
-                            .qrImageUrl(qrService.generateBase64(uniqueCode))
-                            .status("ACTIVE")
-                            .generatedAt(LocalDateTime.now())
-                            .build();
-                    Ticket saved = ticketRepository.save(ticket);
-                    log.info("Ticket generado: {} para orden {}", uniqueCode, evento.orderId());
-                    return saved;
-                });
+        Optional<Ticket> existing = ticketRepository.findByOrderId(evento.orderId());
+        if (existing.isPresent()) {
+            log.info("Ticket ya existe para orden {}, devolviendo existente", evento.orderId());
+            return existing.get();
+        }
+        String uniqueCode = UniqueCodeGenerator.generate();
+        Ticket ticket = Ticket.builder()
+                .orderId(evento.orderId())
+                .eventId(evento.eventId())
+                .customerId(evento.customerId())
+                .ticketType(evento.ticketType() != null ? evento.ticketType() : "GENERAL")
+                .uniqueCode(uniqueCode)
+                .qrImageUrl(qrService.generateBase64(uniqueCode))
+                .status("ACTIVE")
+                .generatedAt(LocalDateTime.now())
+                .build();
+        Ticket saved = ticketRepository.save(ticket);
+        log.info("Ticket generado: {} para orden {}", uniqueCode, evento.orderId());
+        return saved;
     }
 
     @Override
@@ -59,12 +62,18 @@ public class TicketServiceImpl implements TicketService {
     }
 
     @Override
-    @Transactional
+    @Transactional(noRollbackFor = TicketAlreadyUsedException.class)
     public TicketValidationResponse validarTicketDto(String codigo) {
         Ticket ticket = ticketRepository.findByUniqueCode(codigo)
                 .orElseThrow(() -> new TicketNotFoundException(codigo));
 
         if ("USED".equals(ticket.getStatus())) {
+            validationRepository.save(TicketValidation.builder()
+                    .ticket(ticket)
+                    .result("ALREADY_USED")
+                    .validatedAt(LocalDateTime.now())
+                    .offlineMode(false)
+                    .build());
             throw new TicketAlreadyUsedException(codigo);
         }
 
