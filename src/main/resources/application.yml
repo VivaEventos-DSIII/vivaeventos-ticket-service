@@ -7,8 +7,8 @@ spring:
 
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:5433/${DB_NAME:ticketdb}
-    username: ${DB_USER:ticketuser}
-    password: ${DB_PASSWORD:ticketpass}
+    username: ${DB_USER:vivaeventos}
+    password: ${DB_PASSWORD:changeme}
     driver-class-name: org.postgresql.Driver
 
   jpa:
