@@ -113,7 +113,7 @@ public class TicketServiceImpl implements TicketService {
                     "TICKET",
                     ticket.getId().toString(),
                     "Intento de reuso — código: " + codigo,
-                    "DUPLICATE"
+                    "ALREADY_USED"
             );
 
             throw new TicketAlreadyUsedException(codigo);
