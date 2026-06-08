@@ -1,13 +1,11 @@
 FROM maven:3.9.6-eclipse-temurin-21 AS builder
+RUN mkdir -p /root/.m2 && echo '<settings><mirrors><mirror><id>aliyun</id><url>https://maven.aliyun.com/repository/public</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>' > /root/.m2/settings.xml
 WORKDIR /app
 
 # Descargar dependencias antes de copiar fuentes (cache layer)
 COPY pom.xml ./
-RUN mvn dependency:go-offline -q
-
-# Compilar
 COPY src ./src
-RUN mvn package -DskipTests -q
+RUN mvn package -DskipTests -q || mvn package -DskipTests -q || mvn package -DskipTests -q
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app

@@ -6,7 +6,7 @@ spring:
     name: ticket-service
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:5433/${DB_NAME:ticketdb}
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:ticketdb}
     username: ${DB_USER:vivaeventos}
     password: ${DB_PASSWORD:changeme}
     driver-class-name: org.postgresql.Driver
@@ -65,3 +65,12 @@ kafka:
     order-confirmed: order.confirmed   # Escucha
     ticket-generated: ticket.generated  # Publica
     ticket-validated: ticket.validated  # Publica
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
