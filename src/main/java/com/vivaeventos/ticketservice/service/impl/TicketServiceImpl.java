@@ -53,7 +53,7 @@ public class TicketServiceImpl implements TicketService {
         Ticket ticket = Ticket.builder()
                 .orderId(evento.orderId())
                 .eventId(evento.eventId())
-                .customerId(evento.customerId())
+                .customerId(evento.userId())
                 .ticketType(evento.ticketType() != null ? evento.ticketType() : "GENERAL")
                 .uniqueCode(uniqueCode)
                 .qrImageUrl(qrService.generateBase64(uniqueCode))
