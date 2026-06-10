@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -16,5 +17,5 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
     @Query("SELECT t FROM Ticket t WHERE t.uniqueCode = :uniqueCode")
     Optional<Ticket> findByUniqueCode(@Param("uniqueCode") String uniqueCode);
 
-    Optional<Ticket> findByOrderId(UUID orderId);
+    List<Ticket> findAllByOrderId(UUID orderId);
 }

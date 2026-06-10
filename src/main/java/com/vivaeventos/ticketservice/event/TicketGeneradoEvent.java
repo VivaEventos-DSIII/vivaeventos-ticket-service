@@ -1,12 +1,17 @@
 package com.vivaeventos.ticketservice.event;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record TicketGeneradoEvent(
-        UUID ticketId,
         UUID orderId,
         UUID eventId,
-        UUID customerId,
-        String uniqueCode,
-        String ticketType
+        UUID userId,
+        String userEmail,
+        String userName,
+        String eventName,
+        LocalDateTime eventDate,
+        String venue,
+        List<String> ticketCodes
 ) {}

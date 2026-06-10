@@ -19,7 +19,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -34,46 +35,40 @@ public class TicketServiceImpl implements TicketService {
 
     @Override
     @Transactional
-    public Ticket generarTicket(PagoConfirmadoEvent evento) {
-        Optional<Ticket> existing = ticketRepository.findByOrderId(evento.orderId());
-        if (existing.isPresent()) {
-            log.info("Ticket ya existe para orden {}, devolviendo existente", evento.orderId());
-            auditLogService.registrar(
-                    "KAFKA",
-                    "TICKET_GENERATED",
-                    "TICKET",
-                    existing.get().getId().toString(),
-                    "Ticket duplicado para orden " + evento.orderId(),
-                    "DUPLICATE"
-            );
-            return existing.get();
+    public List<Ticket> generarTickets(PagoConfirmadoEvent evento) {
+        List<Ticket> existing = ticketRepository.findAllByOrderId(evento.orderId());
+        int quantity = evento.quantity() > 0 ? evento.quantity() : 1;
+
+        if (existing.size() == quantity) {
+            log.info("Tickets ya existen para orden {}, devolviendo existentes", evento.orderId());
+            auditLogService.registrar("KAFKA", "TICKET_GENERATED", "TICKET",
+                    evento.orderId().toString(),
+                    "Tickets duplicados para orden " + evento.orderId(), "DUPLICATE");
+            return existing;
         }
 
-        String uniqueCode = UniqueCodeGenerator.generate();
-        Ticket ticket = Ticket.builder()
-                .orderId(evento.orderId())
-                .eventId(evento.eventId())
-                .customerId(evento.userId())
-                .ticketType(evento.ticketType() != null ? evento.ticketType() : "GENERAL")
-                .uniqueCode(uniqueCode)
-                .qrImageUrl(qrService.generateBase64(uniqueCode))
-                .status("ACTIVE")
-                .generatedAt(LocalDateTime.now())
-                .build();
+        List<Ticket> tickets = new ArrayList<>();
+        for (int i = 0; i < quantity; i++) {
+            String uniqueCode = UniqueCodeGenerator.generate();
+            Ticket ticket = Ticket.builder()
+                    .orderId(evento.orderId())
+                    .eventId(evento.eventId())
+                    .customerId(evento.userId())
+                    .ticketType(evento.ticketType() != null ? evento.ticketType() : "GENERAL")
+                    .uniqueCode(uniqueCode)
+                    .qrImageUrl(qrService.generateBase64(uniqueCode))
+                    .status("ACTIVE")
+                    .generatedAt(LocalDateTime.now())
+                    .build();
+            tickets.add(ticketRepository.save(ticket));
+            log.info("Ticket {}/{} generado: {} para orden {}", i + 1, quantity, uniqueCode, evento.orderId());
+        }
 
-        Ticket saved = ticketRepository.save(ticket);
-        log.info("Ticket generado: {} para orden {}", uniqueCode, evento.orderId());
+        auditLogService.registrar("KAFKA", "TICKET_GENERATED", "TICKET",
+                evento.orderId().toString(),
+                "Generados " + quantity + " tickets para orden " + evento.orderId(), "SUCCESS");
 
-        auditLogService.registrar(
-                "KAFKA",
-                "TICKET_GENERATED",
-                "TICKET",
-                saved.getId().toString(),
-                "Orden: " + evento.orderId() + " | Tipo: " + saved.getTicketType(),
-                "SUCCESS"
-        );
-
-        return saved;
+        return tickets;
     }
 
     @Override
@@ -81,14 +76,8 @@ public class TicketServiceImpl implements TicketService {
         Ticket ticket = ticketRepository.findById(id)
                 .orElseThrow(() -> new TicketNotFoundException(id));
 
-        auditLogService.registrar(
-                "SYSTEM",
-                "TICKET_QUERIED",
-                "TICKET",
-                id.toString(),
-                "Consulta de ticket por ID",
-                "SUCCESS"
-        );
+        auditLogService.registrar("SYSTEM", "TICKET_QUERIED", "TICKET",
+                id.toString(), "Consulta de ticket por ID", "SUCCESS");
 
         return TicketResponse.from(ticket);
     }
@@ -107,14 +96,9 @@ public class TicketServiceImpl implements TicketService {
                     .offlineMode(false)
                     .build());
 
-            auditLogService.registrar(
-                    "SYSTEM",
-                    "TICKET_VALIDATED",
-                    "TICKET",
+            auditLogService.registrar("SYSTEM", "TICKET_VALIDATED", "TICKET",
                     ticket.getId().toString(),
-                    "Intento de reuso — código: " + codigo,
-                    "ALREADY_USED"
-            );
+                    "Intento de reuso — código: " + codigo, "ALREADY_USED");
 
             throw new TicketAlreadyUsedException(codigo);
         }
@@ -130,14 +114,9 @@ public class TicketServiceImpl implements TicketService {
                 .offlineMode(false)
                 .build());
 
-        auditLogService.registrar(
-                "SYSTEM",
-                "TICKET_VALIDATED",
-                "TICKET",
+        auditLogService.registrar("SYSTEM", "TICKET_VALIDATED", "TICKET",
                 ticket.getId().toString(),
-                "Validación exitosa — código: " + codigo,
-                "SUCCESS"
-        );
+                "Validación exitosa — código: " + codigo, "SUCCESS");
 
         return new TicketValidationResponse(codigo, "VALID", ticket.getId());
     }
